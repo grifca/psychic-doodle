@@ -27,7 +27,8 @@ download button for exporting the data as CSV.
 """
 
 import json
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd
 import streamlit as st
@@ -61,6 +62,144 @@ def parse_parameters(param_list: List[Dict[str, Any]]) -> Dict[str, Any]:
     return param_dict
 
 
+def extract_value(parameter: Dict[str, Any]) -> Any:
+    """Recursively flatten a GTM parameter object into a readable value."""
+    if "value" in parameter:
+        return parameter.get("value")
+    if "list" in parameter:
+        return [extract_value(item) for item in parameter.get("list", [])]
+    if "map" in parameter:
+        return {
+            item.get("key"): extract_value(item)
+            for item in parameter.get("map", [])
+            if item.get("key")
+        }
+    return None
+
+
+def extract_variables_from_value(value: Any) -> Set[str]:
+    """Collect GTM variable tokens like {{Page Path}} from nested values."""
+    variables: Set[str] = set()
+    if isinstance(value, str):
+        variables.update(re.findall(r"\{\{([^}]+)\}\}", value))
+    elif isinstance(value, list):
+        for item in value:
+            variables.update(extract_variables_from_value(item))
+    elif isinstance(value, dict):
+        for item in value.values():
+            variables.update(extract_variables_from_value(item))
+    return variables
+
+
+def describe_trigger_type(trigger_type: Optional[str]) -> str:
+    """Map GTM trigger type codes to readable labels."""
+    trigger_type_labels = {
+        "PAGEVIEW": "Page View",
+        "DOM_READY": "DOM Ready",
+        "WINDOW_LOADED": "Window Loaded",
+        "CLICK": "Click",
+        "LINK_CLICK": "Link Click",
+        "JUST_LINKS": "Link Click",
+        "FORM_SUBMISSION": "Form Submission",
+        "TIMER": "Timer",
+        "SCROLL_DEPTH": "Scroll Depth",
+        "ELEMENT_VISIBILITY": "Element Visibility",
+        "CUSTOM_EVENT": "Custom Event",
+        "YOUTUBE_VIDEO": "YouTube Video",
+        "HISTORY_CHANGE": "History Change",
+        "TRIGGER_GROUP": "Trigger Group",
+        "AMP_CLICK": "AMP Click",
+    }
+    if not trigger_type:
+        return ""
+    return trigger_type_labels.get(trigger_type, trigger_type.replace("_", " ").title())
+
+
+def describe_filter(filter_obj: Dict[str, Any]) -> str:
+    """Convert a GTM filter object into a readable condition string."""
+    filter_type = filter_obj.get("type", "")
+    values = parse_parameters(filter_obj.get("parameter", []))
+    arg0 = values.get("arg0", "")
+    arg1 = values.get("arg1", "")
+    ignore_case = str(values.get("ignore_case", "")).lower() == "true"
+    operators = {
+        "equals": "=",
+        "contains": "contains",
+        "matchRegex": "matches regex",
+        "startsWith": "starts with",
+        "endsWith": "ends with",
+        "greater": ">",
+        "less": "<",
+    }
+
+    if filter_type == "hasOwnProperty":
+        return f"{arg0} exists"
+    if filter_type == "cssSelector":
+        return f"{arg0} matches selector {arg1}"
+
+    operator = operators.get(filter_type, filter_type or "condition")
+    description = " ".join(str(part) for part in [arg0, operator, arg1] if part)
+    if ignore_case and description:
+        description += " (ignore case)"
+    return description
+
+
+def extract_trigger_metadata(trigger: Dict[str, Any]) -> Dict[str, str]:
+    """Build reporting fields for a GTM trigger."""
+    custom_event_filter = parse_parameters(trigger.get("customEventFilter", []))
+    filter_descriptions = [describe_filter(f) for f in trigger.get("filter", [])]
+    auto_event_descriptions = [describe_filter(f) for f in trigger.get("autoEventFilter", [])]
+
+    trigger_conditions = " AND ".join(
+        part
+        for part in filter_descriptions + auto_event_descriptions
+        if part
+    )
+    if custom_event_filter.get("arg0") or custom_event_filter.get("arg1"):
+        event_match = " ".join(
+            str(part)
+            for part in [
+                custom_event_filter.get("arg0"),
+                "matches",
+                custom_event_filter.get("arg1"),
+            ]
+            if part
+        )
+        trigger_conditions = " AND ".join(part for part in [event_match, trigger_conditions] if part)
+
+    variables: Set[str] = set()
+    for key in ("filter", "autoEventFilter", "customEventFilter", "parameter"):
+        for item in trigger.get(key, []):
+            variables.update(extract_variables_from_value(extract_value(item)))
+
+    trigger_name = trigger.get("name", "")
+    trigger_type = describe_trigger_type(trigger.get("type"))
+    normalized_name = trigger_name.lower()
+    all_pages = (
+        "Yes"
+        if "all pages" in normalized_name
+        or (trigger.get("type") == "PAGEVIEW" and not trigger_conditions)
+        else "No"
+    )
+
+    area_of_site = ""
+    conditions_lower = trigger_conditions.lower()
+    if "page path" in conditions_lower or "page url" in conditions_lower:
+        area_of_site = trigger_conditions
+    elif all_pages == "Yes":
+        area_of_site = "Entire site"
+
+    return {
+        "Status (Live/Paused)": "Paused" if trigger.get("paused") else "Live",
+        "Trigger Name": trigger_name,
+        "Trigger Type": trigger_type,
+        "Trigger Conditions": trigger_conditions,
+        "Variables Used": ", ".join(sorted(variables)),
+        "All Pages?": all_pages,
+        "Area of Site": area_of_site,
+    }
+
+
 def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
     """Parse a GTM container JSON to extract analytics tags and their metadata.
 
@@ -86,8 +225,8 @@ def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
         container = data
     tags = container.get("tag", [])
     triggers = container.get("trigger", [])
-    # Build a lookup for trigger names by ID for quick reference.
-    trigger_map: Dict[str, str] = {t.get("triggerId"): t.get("name") for t in triggers}
+    # Build a lookup for full trigger definitions by ID for quick reference.
+    trigger_map: Dict[str, Dict[str, Any]] = {t.get("triggerId"): t for t in triggers}
     rows: List[Dict[str, Any]] = []
 
     # GTM tag type identifiers for analytics tags.
@@ -104,9 +243,7 @@ def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
             continue
         tag_name = tag.get("name", "")
         type_label = analytics_types[tag_type]
-        # Resolve trigger IDs to names.
         firing_ids = tag.get("firingTriggerId", [])
-        trigger_names = [trigger_map.get(i, f"ID:{i}") for i in firing_ids]
         # Parse parameters to extract event-related fields.
         param_dict = parse_parameters(tag.get("parameter", []))
         # Derive key fields for reporting.
@@ -130,19 +267,83 @@ def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
             if k not in exclude_keys and v not in (None, "")
         }
         other_params_str = "; ".join(f"{k}={v}" for k, v in other_params.items())
-        rows.append(
-            {
-                "Tag Name": tag_name,
-                "Tag Type": type_label,
-                "Triggers": ", ".join(trigger_names),
-                "Event Name": event_name,
-                "Event Category": event_category,
-                "Event Action": event_action,
-                "Event Label": event_label,
-                "Parameters": other_params_str,
-            }
+        variables_used = set(extract_variables_from_value(other_params))
+        event_or_action = " | ".join(
+            str(value)
+            for value in [event_name, event_category, event_action, event_label]
+            if value not in (None, "")
         )
-    return pd.DataFrame(rows)
+
+        if not firing_ids:
+            firing_ids = [None]
+
+        for trigger_id in firing_ids:
+            trigger = trigger_map.get(trigger_id, {})
+            trigger_metadata = (
+                extract_trigger_metadata(trigger)
+                if trigger
+                else {
+                    "Status (Live/Paused)": "Live",
+                    "Trigger Name": f"ID:{trigger_id}" if trigger_id else "",
+                    "Trigger Type": "",
+                    "Trigger Conditions": "",
+                    "Variables Used": "",
+                    "All Pages?": "No",
+                    "Area of Site": "",
+                }
+            )
+            combined_variables = sorted(
+                {
+                    *variables_used,
+                    *(
+                        set(trigger_metadata["Variables Used"].split(", "))
+                        if trigger_metadata["Variables Used"]
+                        else set()
+                    ),
+                }
+            )
+            rows.append(
+                {
+                    "Tag Name": tag_name,
+                    "Tag Type": type_label,
+                    "Status (Live/Paused)": "Paused" if tag.get("paused") else trigger_metadata["Status (Live/Paused)"],
+                    "Trigger Name": trigger_metadata["Trigger Name"],
+                    "Trigger Type": trigger_metadata["Trigger Type"],
+                    "Trigger Conditions": trigger_metadata["Trigger Conditions"],
+                    "Variables Used": ", ".join(v for v in combined_variables if v),
+                    "Event Name / Action": event_or_action,
+                    "All Pages?": trigger_metadata["All Pages?"],
+                    "Area of Site": trigger_metadata["Area of Site"],
+                    "Event Name": event_name,
+                    "Event Category": event_category,
+                    "Event Action": event_action,
+                    "Event Label": event_label,
+                    "Parameters": other_params_str,
+                }
+            )
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    preferred_columns = [
+        "Status (Live/Paused)",
+        "Trigger Name",
+        "Trigger Type",
+        "Trigger Conditions",
+        "Variables Used",
+        "Event Name / Action",
+        "All Pages?",
+        "Area of Site",
+        "Tag Name",
+        "Tag Type",
+        "Event Name",
+        "Event Category",
+        "Event Action",
+        "Event Label",
+        "Parameters",
+    ]
+    available_columns = [column for column in preferred_columns if column in df.columns]
+    return df[available_columns]
 
 
 def main() -> None:
