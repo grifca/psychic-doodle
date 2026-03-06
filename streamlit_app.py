@@ -1,6 +1,6 @@
 """
-Web Analytics Auditor - Streamlit Application
-===========================================
+GTM Auto-Auditor - Streamlit Application
+========================================
 
 This Streamlit app provides a user-friendly interface for auditing Google Tag
 Manager (GTM) container exports. It allows users to upload a GTM JSON file,
@@ -148,19 +148,76 @@ def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
 
 def main() -> None:
     """Streamlit app entry point."""
-    st.set_page_config(page_title="Web Analytics Auditor", layout="wide")
-    st.title("Web Analytics Auditor")
+    st.set_page_config(page_title="GTM Auto-Auditor", layout="wide")
+    st.title("GTM Auto-Auditor")
     st.markdown(
         """
-        Upload a Google Tag Manager (GTM) container export to audit your analytics tags.
-        This tool will identify Google Analytics tags (Universal Analytics and GA4),
-        display their firing triggers, event names, and parameters, and allow you
-        to download the results as a CSV.
+        Upload a Google Tag Manager (GTM) container export to audit your current
+        analytics tagging implementation. This tool will identify Google Analytics
+        tags (Universal Analytics and GA4), display their firing triggers, event
+        names, and parameters, and allow you to download the results as a CSV.
         """
     )
 
     uploaded_file = st.file_uploader(
         "Upload GTM container JSON", type=["json"], accept_multiple_files=False
+    )
+    st.markdown(
+        """
+        <style>
+        .gtm-help {
+            margin-top: -0.5rem;
+            margin-bottom: 1rem;
+        }
+        .gtm-help details {
+            display: inline-block;
+            position: relative;
+        }
+        .gtm-help summary {
+            color: #1d4ed8;
+            cursor: pointer;
+            text-decoration: underline;
+            list-style: none;
+        }
+        .gtm-help summary::-webkit-details-marker {
+            display: none;
+        }
+        .gtm-help .tooltip {
+            background: #111827;
+            border-radius: 0.5rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+            color: #ffffff;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            margin-top: 0.5rem;
+            max-width: 24rem;
+            padding: 0.75rem 0.9rem;
+            position: absolute;
+            width: max-content;
+            z-index: 1000;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .gtm-help details .tooltip {
+                display: none;
+            }
+            .gtm-help details:hover .tooltip,
+            .gtm-help details:focus-within .tooltip,
+            .gtm-help details[open] .tooltip {
+                display: block;
+            }
+        }
+        </style>
+        <div class="gtm-help">
+            <details>
+                <summary>how do I get my GTM container?</summary>
+                <div class="tooltip">
+                    In GTM, go to Admin &gt; Export Container, select a workspace or
+                    version, and click Download to save a .json file.
+                </div>
+            </details>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
     if uploaded_file is not None:
         try:
@@ -202,3 +259,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    
