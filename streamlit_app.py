@@ -158,10 +158,7 @@ def main() -> None:
         """,
     )
     uploaded_file = st.file_uploader(
-        "Upload GTM container JSON",
-        type=["json"],
-        accept_multiple_files=False,
-        label_visibility="collapsed",
+        "Upload GTM container JSON", type=["json"], accept_multiple_files=False
     )
     st.markdown(
         """
@@ -174,17 +171,9 @@ def main() -> None:
             font-family: "Manrope", sans-serif !important;
         }
 
-        .upload-prompt {
-            color: #8ec5ff;
-            font-family: "Manrope", sans-serif;
-            font-size: 1rem;
-            font-weight: 600;
-            margin: 0.4rem 0 0.75rem 0;
-        }
-
         div[data-testid="stPopover"] button {
             align-items: center;
-            color: #1d4ed8;
+            color: #8ec5ff;
             background: none;
             border: 0;
             display: inline-flex;
@@ -195,7 +184,7 @@ def main() -> None:
             width: auto;
         }
         div[data-testid="stPopover"] button:hover {
-            color: #1e40af;
+            color: #8ec5ff;
         }
         div[data-testid="stPopover"] button p {
             margin: 0;
@@ -209,11 +198,6 @@ def main() -> None:
         "In GTM, go to Admin > Export Container, select a workspace or version, "
         "and click Download to save a .json file."
     )
-    if hasattr(st, "popover"):
-        with st.popover("how do I get my GTM container?"):
-            st.write(help_text)
-    else:
-        st.caption(help_text)
     if uploaded_file is not None:
         try:
             # Load JSON data from the uploaded file.
@@ -250,10 +234,12 @@ def main() -> None:
             st.error(f"An error occurred while processing the file: {e}")
     else:
         st.info("Please upload a GTM container JSON file to get started.")
-        st.markdown(
-            '<p class="upload-prompt">Upload GTM container JSON</p>',
-            unsafe_allow_html=True,
-        )
+
+    if hasattr(st, "popover"):
+        with st.popover("how do I get my GTM container?"):
+            st.write(help_text)
+    else:
+        st.caption(help_text)
 
 
 if __name__ == "__main__":
