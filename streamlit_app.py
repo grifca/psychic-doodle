@@ -158,7 +158,10 @@ def main() -> None:
         """,
     )
     uploaded_file = st.file_uploader(
-        "Upload GTM container JSON", type=["json"], accept_multiple_files=False
+        "Upload GTM container JSON",
+        type=["json"],
+        accept_multiple_files=False,
+        label_visibility="collapsed",
     )
     st.markdown(
         """
@@ -169,6 +172,14 @@ def main() -> None:
         div[data-testid="stFileUploader"] label,
         div[data-testid="stFileUploaderDropzoneInstructions"] span {
             font-family: "Manrope", sans-serif !important;
+        }
+
+        .upload-prompt {
+            color: #8ec5ff;
+            font-family: "Manrope", sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0.4rem 0 0.75rem 0;
         }
 
         div[data-testid="stPopover"] button {
@@ -239,6 +250,10 @@ def main() -> None:
             st.error(f"An error occurred while processing the file: {e}")
     else:
         st.info("Please upload a GTM container JSON file to get started.")
+        st.markdown(
+            '<p class="upload-prompt">Upload GTM container JSON</p>',
+            unsafe_allow_html=True,
+        )
 
 
 if __name__ == "__main__":
