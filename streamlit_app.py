@@ -26,6 +26,7 @@ download button for exporting the data as CSV.
 
 """
 
+import hashlib
 import json
 import re
 from typing import Any, Dict, List, Optional, Set
@@ -115,6 +116,24 @@ def describe_trigger_type(trigger_type: Optional[str]) -> str:
     return trigger_type_labels.get(trigger_type, trigger_type.replace("_", " ").title())
 
 
+def describe_tag_type(tag_type: Optional[str]) -> str:
+    """Map GTM tag type codes to readable labels."""
+    tag_type_labels = {
+        "gaawe": "GA4 Event",
+        "googtag": "GA4 Configuration",
+        "ua": "Universal Analytics",
+        "html": "Custom HTML",
+        "img": "Custom Image",
+        "gclidw": "Conversion Linker",
+        "awct": "Google Ads Conversion Tracking",
+        "sp": "Custom Template",
+        "floodlight": "Floodlight",
+    }
+    if not tag_type:
+        return ""
+    return tag_type_labels.get(tag_type, tag_type.replace("_", " ").title())
+
+
 def describe_filter(filter_obj: Dict[str, Any]) -> str:
     """Convert a GTM filter object into a readable condition string."""
     filter_type = filter_obj.get("type", "")
@@ -200,22 +219,25 @@ def extract_trigger_metadata(trigger: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
-def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
-    """Parse a GTM container JSON to extract analytics tags and their metadata.
+def parse_gtm_container(
+    data: Dict[str, Any], analytics_only: bool = True
+) -> pd.DataFrame:
+    """Parse a GTM container JSON to extract tag metadata.
 
     A GTM export JSON may contain the actual container data under the key
     ``containerVersion`` (as part of the workspace export). This function
     normalises the structure and then iterates through all tags, selecting
     those that relate to Google Analytics (Universal Analytics or GA4). It
     builds a data frame containing the tag name, type, firing triggers,
-    key event properties, and other parameters. Non-analytics tags are
-    ignored.
+    key event properties, and other parameters. By default, the report
+    is limited to Google Analytics tags; callers can request the full
+    tag inventory instead.
 
     Args:
         data: The loaded JSON object from a GTM container export.
 
     Returns:
-        A pandas DataFrame where each row corresponds to an analytics tag.
+        A pandas DataFrame where each row corresponds to a GTM tag / trigger pair.
     """
     # If the export is a workspace export, the container data lives under
     # ``containerVersion``.
@@ -229,7 +251,6 @@ def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
     trigger_map: Dict[str, Dict[str, Any]] = {t.get("triggerId"): t for t in triggers}
     rows: List[Dict[str, Any]] = []
 
-    # GTM tag type identifiers for analytics tags.
     analytics_types = {
         "gaawe": "GA4 Event",
         "googtag": "GA4 Configuration",
@@ -238,11 +259,10 @@ def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
 
     for tag in tags:
         tag_type = tag.get("type")
-        if tag_type not in analytics_types:
-            # Skip non-analytics tags.
+        if analytics_only and tag_type not in analytics_types:
             continue
         tag_name = tag.get("name", "")
-        type_label = analytics_types[tag_type]
+        type_label = analytics_types.get(tag_type, describe_tag_type(tag_type))
         firing_ids = tag.get("firingTriggerId", [])
         # Parse parameters to extract event-related fields.
         param_dict = parse_parameters(tag.get("parameter", []))
@@ -306,7 +326,9 @@ def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
                 {
                     "Tag Name": tag_name,
                     "Tag Type": type_label,
-                    "Status (Live/Paused)": "Paused" if tag.get("paused") else trigger_metadata["Status (Live/Paused)"],
+                    "Status (Live/Paused)": "Paused"
+                    if tag.get("paused")
+                    else trigger_metadata["Status (Live/Paused)"],
                     "Trigger Name": trigger_metadata["Trigger Name"],
                     "Trigger Type": trigger_metadata["Trigger Type"],
                     "Trigger Conditions": trigger_metadata["Trigger Conditions"],
@@ -355,7 +377,8 @@ def main() -> None:
         Upload a Google Tag Manager (GTM) container export to audit your current
         analytics tagging implementation. This tool will identify Google Analytics
         tags (Universal Analytics and GA4), display their firing triggers, event
-        names, and parameters, and allow you to download the results as a CSV.
+        names, and parameters, and allow you to optionally generate a full GTM
+        inventory from the same uploaded container.
         """,
     )
     uploaded_file = st.file_uploader(
@@ -399,12 +422,24 @@ def main() -> None:
         "In GTM, go to Admin > Export Container, select a workspace or version, "
         "and click Download to save a .json file."
     )
+    if "container_data" not in st.session_state:
+        st.session_state.container_data = None
+    if "show_full_inventory" not in st.session_state:
+        st.session_state.show_full_inventory = False
+    if "uploaded_signature" not in st.session_state:
+        st.session_state.uploaded_signature = None
+
     if uploaded_file is not None:
         try:
             # Load JSON data from the uploaded file.
             file_bytes = uploaded_file.read()
+            uploaded_signature = hashlib.sha256(file_bytes).hexdigest()
             container_data = json.loads(file_bytes)
-            df = parse_gtm_container(container_data)
+            if st.session_state.uploaded_signature != uploaded_signature:
+                st.session_state.show_full_inventory = False
+            st.session_state.uploaded_signature = uploaded_signature
+            st.session_state.container_data = container_data
+            df = parse_gtm_container(container_data, analytics_only=True)
             if df.empty:
                 st.warning(
                     "No Google Analytics tags were found in this container.\n"
@@ -427,6 +462,27 @@ def main() -> None:
                     label="Download CSV",
                     data=csv_data,
                     file_name="gtm_analytics_inventory.csv",
+                    mime="text/csv",
+                )
+            st.divider()
+            st.subheader("Step 2: Full GTM Inventory")
+            st.write(
+                "Use the same uploaded container export to generate a complete GTM tag inventory."
+            )
+            if st.button("Run Full GTM Inventory", use_container_width=True):
+                st.session_state.show_full_inventory = True
+
+            if st.session_state.show_full_inventory and st.session_state.container_data is not None:
+                full_df = parse_gtm_container(
+                    st.session_state.container_data,
+                    analytics_only=False,
+                )
+                st.dataframe(full_df, use_container_width=True)
+                full_csv_data = full_df.to_csv(index=False)
+                st.download_button(
+                    label="Download Full GTM CSV",
+                    data=full_csv_data,
+                    file_name="gtm_full_inventory.csv",
                     mime="text/csv",
                 )
         except json.JSONDecodeError:
