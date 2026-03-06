@@ -208,7 +208,7 @@ def main() -> None:
         }
         </style>
         <div class="gtm-help">
-            <details>
+            <details id="gtm-help-details">
                 <summary>how do I get my GTM container?</summary>
                 <div class="tooltip">
                     In GTM, go to Admin &gt; Export Container, select a workspace or
@@ -216,6 +216,23 @@ def main() -> None:
                 </div>
             </details>
         </div>
+        <script>
+        (function() {
+            const details = window.parent.document.getElementById("gtm-help-details");
+            if (!details || details.dataset.outsideCloseBound === "true") {
+                return;
+            }
+
+            const closeOnOutsideClick = (event) => {
+                if (details.open && !details.contains(event.target)) {
+                    details.removeAttribute("open");
+                }
+            };
+
+            window.parent.document.addEventListener("click", closeOnOutsideClick);
+            details.dataset.outsideCloseBound = "true";
+        })();
+        </script>
         """,
         unsafe_allow_html=True,
     )
@@ -259,4 +276,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    
