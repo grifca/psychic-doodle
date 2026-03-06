@@ -166,15 +166,23 @@ def main() -> None:
         """
         <style>
         div[data-testid="stPopover"] button {
+            align-items: center;
             color: #1d4ed8;
-            text-decoration: underline;
             background: none;
             border: 0;
+            display: inline-flex;
+            gap: 0.25rem;
+            justify-content: flex-start;
             padding: 0;
             font-size: 0.95rem;
+            width: auto;
         }
         div[data-testid="stPopover"] button:hover {
             color: #1e40af;
+        }
+        div[data-testid="stPopover"] button p {
+            margin: 0;
+            text-decoration: underline;
         }
         </style>
         """,
