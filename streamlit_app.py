@@ -165,77 +165,30 @@ def main() -> None:
     st.markdown(
         """
         <style>
-        .gtm-help {
-            margin-top: -0.5rem;
-            margin-bottom: 1rem;
-        }
-        .gtm-help details {
-            display: inline-block;
-            position: relative;
-        }
-        .gtm-help summary {
+        div[data-testid="stPopover"] button {
             color: #1d4ed8;
-            cursor: pointer;
             text-decoration: underline;
-            list-style: none;
+            background: none;
+            border: 0;
+            padding: 0;
+            font-size: 0.95rem;
         }
-        .gtm-help summary::-webkit-details-marker {
-            display: none;
-        }
-        .gtm-help .tooltip {
-            background: #111827;
-            border-radius: 0.5rem;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-            color: #ffffff;
-            font-size: 0.9rem;
-            line-height: 1.4;
-            margin-top: 0.5rem;
-            max-width: 24rem;
-            padding: 0.75rem 0.9rem;
-            position: absolute;
-            width: max-content;
-            z-index: 1000;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .gtm-help details .tooltip {
-                display: none;
-            }
-            .gtm-help details:hover .tooltip,
-            .gtm-help details:focus-within .tooltip,
-            .gtm-help details[open] .tooltip {
-                display: block;
-            }
+        div[data-testid="stPopover"] button:hover {
+            color: #1e40af;
         }
         </style>
-        <div class="gtm-help">
-            <details id="gtm-help-details">
-                <summary>how do I get my GTM container?</summary>
-                <div class="tooltip">
-                    In GTM, go to Admin &gt; Export Container, select a workspace or
-                    version, and click Download to save a .json file.
-                </div>
-            </details>
-        </div>
-        <script>
-        (function() {
-            const details = window.parent.document.getElementById("gtm-help-details");
-            if (!details || details.dataset.outsideCloseBound === "true") {
-                return;
-            }
-
-            const closeOnOutsideClick = (event) => {
-                if (details.open && !details.contains(event.target)) {
-                    details.removeAttribute("open");
-                }
-            };
-
-            window.parent.document.addEventListener("click", closeOnOutsideClick);
-            details.dataset.outsideCloseBound = "true";
-        })();
-        </script>
         """,
         unsafe_allow_html=True,
     )
+    help_text = (
+        "In GTM, go to Admin > Export Container, select a workspace or version, "
+        "and click Download to save a .json file."
+    )
+    if hasattr(st, "popover"):
+        with st.popover("how do I get my GTM container?"):
+            st.write(help_text)
+    else:
+        st.caption(help_text)
     if uploaded_file is not None:
         try:
             # Load JSON data from the uploaded file.
