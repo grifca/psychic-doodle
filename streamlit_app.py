@@ -145,223 +145,35 @@ def parse_gtm_container(data: Dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def inject_styles() -> None:
-    """Apply a Quint-inspired editorial theme to the Streamlit app."""
+def main() -> None:
+    """Streamlit app entry point."""
+    st.set_page_config(page_title="GTM Auto-Auditor", layout="wide")
+    st.title("GTM Auto-Auditor")
+    st.markdown(
+        """
+        Upload a Google Tag Manager (GTM) container export to audit your current
+        analytics tagging implementation. This tool will identify Google Analytics
+        tags (Universal Analytics and GA4), display their firing triggers, event
+        names, and parameters, and allow you to download the results as a CSV.
+        """,
+    )
+    uploaded_file = st.file_uploader(
+        "Upload GTM container JSON", type=["json"], accept_multiple_files=False
+    )
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
 
-        :root {
-            --bg: #f6f1e8;
-            --paper: rgba(255, 252, 247, 0.82);
-            --paper-strong: #fffdf8;
-            --ink: #1f1b16;
-            --muted: #6c6258;
-            --line: rgba(31, 27, 22, 0.14);
-            --accent: #b85c38;
-            --accent-soft: rgba(184, 92, 56, 0.12);
-            --shadow: 0 24px 70px rgba(49, 37, 24, 0.08);
-            --radius: 24px;
-        }
-
-        .stApp {
-            background:
-                radial-gradient(circle at top left, rgba(184, 92, 56, 0.16), transparent 28%),
-                radial-gradient(circle at 85% 15%, rgba(82, 107, 91, 0.12), transparent 24%),
-                linear-gradient(180deg, #f8f3ea 0%, #f4ede3 100%);
-            color: var(--ink);
-        }
-
-        .main .block-container {
-            max-width: 1120px;
-            padding-top: 3rem;
-            padding-bottom: 4rem;
-        }
-
-        h1, h2, h3 {
-            font-family: "Fraunces", Georgia, serif !important;
-            color: var(--ink);
-            letter-spacing: -0.03em;
-        }
-
-        p, li, label, div[data-testid="stMarkdownContainer"] {
+        .stFileUploader label,
+        div[data-testid="stFileUploader"] label,
+        div[data-testid="stFileUploaderDropzoneInstructions"] span {
             font-family: "Manrope", sans-serif !important;
-        }
-
-        .quint-shell {
-            display: grid;
-            gap: 1.4rem;
-        }
-
-        .quint-hero {
-            background: linear-gradient(135deg, rgba(255, 252, 247, 0.84), rgba(255, 248, 240, 0.72));
-            border: 1px solid var(--line);
-            border-radius: 32px;
-            box-shadow: var(--shadow);
-            overflow: hidden;
-            position: relative;
-            padding: 3rem;
-        }
-
-        .quint-hero::after {
-            content: "";
-            position: absolute;
-            inset: auto -6% -30% auto;
-            width: 22rem;
-            height: 22rem;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(184, 92, 56, 0.2), transparent 68%);
-            pointer-events: none;
-        }
-
-        .quint-kicker {
-            color: var(--accent);
-            font: 700 0.8rem/1 "Manrope", sans-serif;
-            letter-spacing: 0.24em;
-            margin-bottom: 1rem;
-            text-transform: uppercase;
-        }
-
-        .quint-hero h1 {
-            font-size: clamp(3rem, 7vw, 5.8rem);
-            line-height: 0.92;
-            margin: 0;
-            max-width: 9ch;
-        }
-
-        .quint-lead {
-            color: var(--muted);
-            font-size: 1.1rem;
-            line-height: 1.75;
-            margin-top: 1.25rem;
-            max-width: 42rem;
-        }
-
-        .quint-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 1rem;
-        }
-
-        .quint-card {
-            backdrop-filter: blur(10px);
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            padding: 1.4rem;
-        }
-
-        .quint-card h3,
-        .quint-card h4 {
-            margin: 0 0 0.6rem 0;
-        }
-
-        .quint-card p,
-        .quint-card li {
-            color: var(--muted);
-            line-height: 1.7;
-            margin: 0;
-        }
-
-        .quint-card ul {
-            margin: 0.7rem 0 0 1rem;
-            padding: 0;
-        }
-
-        .quint-section-title {
-            font-size: 2rem;
-            margin-bottom: 0.35rem;
-        }
-
-        .quint-section-copy {
-            color: var(--muted);
-            margin-bottom: 1rem;
-            max-width: 44rem;
-        }
-
-        .quint-metrics {
-            display: grid;
-            gap: 1rem;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            margin: 1rem 0 1.25rem 0;
-        }
-
-        .quint-metric {
-            background: var(--paper-strong);
-            border: 1px solid var(--line);
-            border-radius: 20px;
-            padding: 1.1rem 1.2rem;
-        }
-
-        .quint-metric-label {
-            color: var(--muted);
-            font: 600 0.82rem/1.3 "Manrope", sans-serif;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        .quint-metric-value {
-            color: var(--ink);
-            font: 700 clamp(1.8rem, 4vw, 2.6rem)/1 "Fraunces", Georgia, serif;
-            margin-top: 0.55rem;
-        }
-
-        div[data-testid="stFileUploader"] {
-            background: rgba(255, 252, 247, 0.7);
-            border: 1.5px dashed rgba(31, 27, 22, 0.18);
-            border-radius: 20px;
-            padding: 0.5rem;
-        }
-
-        div[data-testid="stFileUploader"] section {
-            padding: 1.4rem 1rem;
-        }
-
-        .stButton button,
-        .stDownloadButton button,
-        div[data-testid="stBaseButton-secondary"] {
-            background: var(--ink);
-            border: 1px solid var(--ink);
-            border-radius: 999px;
-            color: #fffaf3;
-            font-family: "Manrope", sans-serif;
-            font-weight: 700;
-            min-height: 2.8rem;
-            padding: 0.5rem 1.1rem;
-            transition: all 120ms ease;
-        }
-
-        .stButton button:hover,
-        .stDownloadButton button:hover,
-        div[data-testid="stBaseButton-secondary"]:hover {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: white;
-        }
-
-        .stSelectbox label,
-        .stFileUploader label {
-            color: var(--ink);
-            font-weight: 700;
-        }
-
-        div[data-testid="stDataFrame"] {
-            border: 1px solid var(--line);
-            border-radius: 22px;
-            overflow: hidden;
-            box-shadow: var(--shadow);
-        }
-
-        div[data-testid="stAlert"] {
-            border-radius: 18px;
-            border: 1px solid var(--line);
         }
 
         div[data-testid="stPopover"] button {
             align-items: center;
-            color: var(--accent);
+            color: #1d4ed8;
             background: none;
             border: 0;
             display: inline-flex;
@@ -371,99 +183,16 @@ def inject_styles() -> None:
             font-size: 0.95rem;
             width: auto;
         }
-
         div[data-testid="stPopover"] button:hover {
-            color: #8e482d;
+            color: #1e40af;
         }
-
         div[data-testid="stPopover"] button p {
             margin: 0;
             text-decoration: underline;
         }
-
-        @media (max-width: 900px) {
-            .quint-grid,
-            .quint-metrics {
-                grid-template-columns: 1fr;
-            }
-
-            .quint-hero {
-                padding: 2rem 1.4rem;
-            }
-        }
         </style>
         """,
         unsafe_allow_html=True,
-    )
-
-
-def render_metric(label: str, value: str) -> None:
-    """Render a styled metric card."""
-    st.markdown(
-        f"""
-        <div class="quint-metric">
-            <div class="quint-metric-label">{label}</div>
-            <div class="quint-metric-value">{value}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def main() -> None:
-    """Streamlit app entry point."""
-    st.set_page_config(page_title="GTM Auto-Auditor", layout="wide")
-    inject_styles()
-
-    st.markdown(
-        """
-        <section class="quint-hero">
-            <div class="quint-kicker">Analytics Audit</div>
-            <h1>Read your GTM container like an editor.</h1>
-            <p class="quint-lead">
-                Upload a Google Tag Manager export and turn a noisy container into a clean
-                inventory of GA4 and Universal Analytics tags, firing logic, and event details.
-            </p>
-        </section>
-        """
-        ,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <section class="quint-grid">
-            <article class="quint-card">
-                <h3>What it pulls</h3>
-                <p>Tag names, analytics type, firing triggers, event fields, and remaining parameters.</p>
-            </article>
-            <article class="quint-card">
-                <h3>What it skips</h3>
-                <p>Non-analytics tags stay out of the report so the output remains useful for audits and handoff docs.</p>
-            </article>
-            <article class="quint-card">
-                <h3>What you get</h3>
-                <p>An on-screen inventory you can filter, review, and export as CSV for cleanup or migration work.</p>
-            </article>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div class="quint-card">
-            <h2 class="quint-section-title">Upload a container export</h2>
-            <p class="quint-section-copy">
-                Use a workspace or container version export from GTM. The parser will normalize the structure and surface analytics tags only.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    uploaded_file = st.file_uploader(
-        "Upload GTM container JSON", type=["json"], accept_multiple_files=False
     )
     help_text = (
         "In GTM, go to Admin > Export Container, select a workspace or version, "
@@ -494,35 +223,12 @@ def main() -> None:
                     filtered_df = df[df["Tag Type"] == selected_type]
                 else:
                     filtered_df = df
-                st.markdown(
-                    """
-                    <div class="quint-card">
-                        <h2 class="quint-section-title">Tag inventory</h2>
-                        <p class="quint-section-copy">
-                            Review the extracted analytics implementation below, then download the filtered result set if you need a shareable audit artifact.
-                        </p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                metric_columns = st.columns(3)
-                with metric_columns[0]:
-                    render_metric("Analytics Tags", str(len(filtered_df)))
-                with metric_columns[1]:
-                    render_metric("Tag Types", str(filtered_df["Tag Type"].nunique()))
-                with metric_columns[2]:
-                    trigger_count = (
-                        filtered_df["Triggers"]
-                        .fillna("")
-                        .map(lambda value: len([item for item in value.split(", ") if item]))
-                        .sum()
-                    )
-                    render_metric("Trigger Links", str(trigger_count))
+                st.subheader("Tag Inventory")
                 st.dataframe(filtered_df, use_container_width=True)
                 # Download button for CSV export.
                 csv_data = filtered_df.to_csv(index=False)
                 st.download_button(
-                    label="Download audit CSV",
+                    label="Download CSV",
                     data=csv_data,
                     file_name="gtm_analytics_inventory.csv",
                     mime="text/csv",
