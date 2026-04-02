@@ -8,8 +8,8 @@ Tab 1 — Analytics Inventory
     Upload a GTM JSON export and get a filterable table of GA4 / UA tags
     with trigger details. CSV download included.
 
-Tab 2 — Phase 1 Audit
-    Upload a GTM JSON export and run the full Phase 1 container audit.
+Tab 2 — GTM Audit
+    Upload a GTM JSON export and run the full GTM container audit.
     Produces severity-tiered findings (Critical / High / Medium / Hygiene),
     an in-browser summary, and a downloadable Excel workbook matching the
     format used by the team's manual audit process.
@@ -716,7 +716,7 @@ def build_audit_workbook(container: Dict[str, Any], findings: List[Dict[str, Any
     ws1 = wb.active
     ws1.title = "Executive Summary"
     ws1.sheet_view.showGridLines = False
-    _title(ws1, f"GTM Audit  |  {container['container_id']}  |  {container['container_name']}  |  Phase 1 Container Audit", 4)
+    _title(ws1, f"GTM Audit  |  {container['container_id']}  |  {container['container_name']}  |  GTM Container Audit", 4)
 
     meta = [
         ("Container ID",       container["container_id"]),
@@ -1020,7 +1020,7 @@ def main() -> None:
 
     st.divider()
 
-    tab_audit, tab_inventory = st.tabs(["📋 Phase 1 Audit", "🔍 Analytics Inventory"])
+    tab_audit, tab_inventory = st.tabs(["📋 GTM Audit", "🔍 Analytics Inventory"])
 
     # ── SESSION STATE ──────────────────────────────────────────────────────
     for key, default in [
@@ -1035,7 +1035,7 @@ def main() -> None:
     # TAB 1: PHASE 1 AUDIT
     # ══════════════════════════════════════════════════════════════════════
     with tab_audit:
-        st.subheader("Phase 1 Container Audit")
+        st.subheader("GTM Container Audit")
         st.markdown(
             "Upload a GTM container JSON export to receive a full structured audit: "
             "severity-tiered findings, a tag inventory, vendor summary, and a "
@@ -1189,7 +1189,7 @@ def main() -> None:
                 st.error(f"An error occurred while processing the file: {e}")
                 st.exception(e)
         else:
-            st.info("Upload a GTM container JSON file above to run the Phase 1 audit.")
+            st.info("Upload a GTM container JSON file above to run the GTM audit.")
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB 2: ANALYTICS INVENTORY  (original feature, unchanged)
